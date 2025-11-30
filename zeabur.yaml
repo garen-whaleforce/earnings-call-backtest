@@ -8,10 +8,13 @@ services:
     build_type: dockerfile
     env:
       - FMP_API_KEY
-      - AZURE_OPENAI_API_KEY
-      - AZURE_OPENAI_ENDPOINT
-      - AZURE_OPENAI_DEPLOYMENT_NAME
-      - AZURE_OPENAI_API_VERSION
+      - FINNHUB_API_KEY
+      - OPENAI_API_KEY
+      - MINIO_ENDPOINT
+      - MINIO_ACCESS_KEY
+      - MINIO_SECRET_KEY
+      - MINIO_BUCKET
+      - MINIO_SECURE
 
   # 前端
   frontend:
