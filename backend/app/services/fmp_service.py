@@ -363,75 +363,56 @@ class FMPService:
     ) -> List[EarningsEvent]:
         """
         取得特定股票在指定日期範圍內的所有歷史 earnings events
-        使用 earnings-calendar API 取得真正的 earnings call 發佈日期
-        （而非 SEC 10-Q filing 日期）
+        使用 earning-call-transcript-dates API 直接按 symbol 查詢
 
-        注意：
-        - earnings-calendar API 每次最多回傳 4000 筆且無法按 symbol 過濾
-        - API 有 90 天日期範圍限制
-        - 但當日期範圍太大時（如 earnings season），4000 筆會被截斷
-        - 我們需要將查詢範圍分成更小的區塊（3 天），確保不會遺漏資料
-        - 例如：5/1~5/8（7天）回傳 4000 筆，導致 AAPL 等大公司被截斷
+        這個 API 比 earnings-calendar 更高效，因為：
+        - 直接按 symbol 查詢，不需要獲取所有公司的資料
+        - 不受 4000 筆限制影響
+        - 回傳該股票所有歷史 earnings call 日期
         """
         events = []
-        seen_dates = set()  # 避免重複
-        # 使用 3 天區塊避免 4000 筆限制導致資料截斷
-        # earnings season 高峰期（如 5/1 前後）每天有 1000+ 家公司發佈
-        # 測試顯示 7 天區塊在 earnings season 仍會達到 4000 筆上限
-        # 例如：5/1~5/8 回傳 4000 筆，導致 AAPL 等大公司被截斷
-        MAX_DAYS = 3
 
         try:
-            # 將日期範圍分成最多 3 天的區塊查詢
-            current_start = from_date
-            while current_start <= to_date:
-                # 計算區塊結束日期（最多 7 天後或 to_date）
-                chunk_end = min(current_start + timedelta(days=MAX_DAYS), to_date)
+            # 使用 earning-call-transcript-dates API 直接查詢該股票的 earnings 日期
+            data = await self._get(
+                "earning-call-transcript-dates",
+                {"symbol": symbol}
+            )
 
-                data = await self._get(
-                    "earnings-calendar",
-                    {
-                        "from": current_start.isoformat(),
-                        "to": chunk_end.isoformat(),
-                    }
+            if not isinstance(data, list):
+                return events
+
+            for item in data:
+                earnings_date_str = item.get("date")
+                if not earnings_date_str:
+                    continue
+
+                try:
+                    earnings_date = date.fromisoformat(earnings_date_str)
+                except ValueError:
+                    continue
+
+                # 篩選日期範圍
+                if earnings_date < from_date or earnings_date > to_date:
+                    continue
+
+                # API 返回 quarter 為整數，需要轉換為字串
+                quarter = item.get("quarter")
+                fiscal_year = item.get("fiscalYear")
+
+                events.append(
+                    EarningsEvent(
+                        symbol=symbol,
+                        company_name=symbol,
+                        earnings_date=earnings_date,
+                        fiscal_quarter=f"Q{quarter}" if quarter else None,
+                        fiscal_year=fiscal_year,
+                        eps_actual=None,
+                        eps_estimate=None,
+                        revenue_actual=None,
+                        revenue_estimate=None,
+                    )
                 )
-
-                if isinstance(data, list):
-                    for item in data:
-                        # 只處理目標 symbol
-                        if item.get("symbol") != symbol:
-                            continue
-
-                        earnings_date_str = item.get("date")
-                        if not earnings_date_str:
-                            continue
-
-                        try:
-                            earnings_date = date.fromisoformat(earnings_date_str)
-                        except ValueError:
-                            continue
-
-                        # 避免重複
-                        if earnings_date in seen_dates:
-                            continue
-                        seen_dates.add(earnings_date)
-
-                        events.append(
-                            EarningsEvent(
-                                symbol=symbol,
-                                company_name=symbol,
-                                earnings_date=earnings_date,
-                                fiscal_quarter=None,
-                                fiscal_year=None,
-                                eps_actual=item.get("epsActual"),
-                                eps_estimate=item.get("epsEstimated"),
-                                revenue_actual=item.get("revenueActual"),
-                                revenue_estimate=item.get("revenueEstimated"),
-                            )
-                        )
-
-                # 移到下一個區塊（下一天開始）
-                current_start = chunk_end + timedelta(days=1)
 
         except Exception:
             pass
