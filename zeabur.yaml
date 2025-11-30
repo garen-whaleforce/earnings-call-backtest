@@ -2,10 +2,9 @@
 # 文檔: https://zeabur.com/docs
 
 services:
-  # 後端 API
+  # 後端 API (Python FastAPI)
   backend:
     root_directory: backend
-    build_type: dockerfile
     env:
       - FMP_API_KEY
       - FINNHUB_API_KEY
