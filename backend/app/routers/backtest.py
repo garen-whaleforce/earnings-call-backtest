@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 from datetime import date, timedelta
 from ..services import BacktestService, OpenAIService
 from ..services.minio_service import MinioService
@@ -153,14 +153,18 @@ async def delete_history(object_name: str):
 @router.post("/history/save")
 async def save_to_history(
     query_type: str = Query(..., description="查詢類型 (stock, recent, custom)"),
-    results: List[BacktestResult] = [],
-    params: Dict[str, Any] = {},
+    results: List[Dict[str, Any]] = Body(default=[]),
 ):
     """手動儲存查詢結果到歷史記錄"""
     try:
         minio_service = MinioService()
-        results_dict = [r.model_dump() for r in results]
-        object_name = minio_service.save_query_result(query_type, params, results_dict)
+        # 從 results 中提取 params（如果有的話）
+        params = {}
+        if results and len(results) > 0:
+            first_result = results[0]
+            if "symbol" in first_result:
+                params["symbol"] = first_result["symbol"]
+        object_name = minio_service.save_query_result(query_type, params, results)
         if not object_name:
             raise HTTPException(status_code=500, detail="儲存失敗")
         return {"object_name": object_name, "message": "儲存成功"}

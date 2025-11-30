@@ -10,6 +10,7 @@ from ..config import get_settings
 class MinioService:
     def __init__(self):
         settings = get_settings()
+        self.endpoint = settings.minio_endpoint
         self.client = Minio(
             endpoint=settings.minio_endpoint,
             access_key=settings.minio_access_key,
@@ -17,6 +18,7 @@ class MinioService:
             secure=settings.minio_secure,
         )
         self.bucket = settings.minio_bucket
+        self._connected = False
         self._ensure_bucket()
 
     def _ensure_bucket(self):
@@ -24,8 +26,13 @@ class MinioService:
         try:
             if not self.client.bucket_exists(self.bucket):
                 self.client.make_bucket(self.bucket)
+            self._connected = True
         except S3Error as e:
             print(f"MinIO bucket error: {e}")
+            self._connected = False
+        except Exception as e:
+            print(f"MinIO connection error to {self.endpoint}: {e}")
+            self._connected = False
 
     def save_query_result(
         self,
