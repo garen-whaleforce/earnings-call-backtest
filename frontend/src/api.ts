@@ -108,7 +108,7 @@ export async function deleteHistory(objectName: string): Promise<void> {
 export async function saveToHistory(
   queryType: string,
   results: BacktestResult[],
-  params: Record<string, unknown>
+  _params: Record<string, unknown>
 ): Promise<{ object_name: string; message: string }> {
   const response = await api.post("/api/backtest/history/save", results, {
     params: { query_type: queryType },

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider, useQuery, useMutation } from "@tanstack/react-query";
 import { runBacktest, getRecentEarnings, validateResults, searchStockEarnings, getHistory, getHistoryDetail, deleteHistory, saveToHistory } from "./api";
-import type { BacktestResult, BacktestRequest, ValidationResult } from "./types";
+import type { BacktestResult, BacktestRequest } from "./types";
 import type { HistoryRecord, HistoryDetail } from "./api";
 import "./App.css";
 
@@ -14,11 +14,6 @@ function formatMarketCap(value: number): string {
   return `$${value.toFixed(0)}`;
 }
 
-function formatPercent(value: number | undefined): string {
-  if (value === undefined || value === null) return "N/A";
-  return `${(value * 100).toFixed(2)}%`;
-}
-
 function ResultsTable({
   results,
   onValidate
@@ -26,17 +21,8 @@ function ResultsTable({
   results: BacktestResult[];
   onValidate: (results: BacktestResult[]) => void;
 }) {
-  const [validations, setValidations] = useState<Record<string, ValidationResult>>({});
-
   const validateMutation = useMutation({
     mutationFn: validateResults,
-    onSuccess: (data) => {
-      const newValidations: Record<string, ValidationResult> = {};
-      data.forEach((v) => {
-        newValidations[v.symbol] = v;
-      });
-      setValidations(newValidations);
-    },
   });
 
   const handleValidate = () => {
