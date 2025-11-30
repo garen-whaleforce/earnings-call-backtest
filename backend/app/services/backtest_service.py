@@ -231,6 +231,9 @@ class BacktestService:
         """
         查詢單一股票在指定時間範圍內的所有 earnings call 資料
         返回：earnings call 時間（盤前/盤後）、發佈前股價、發佈後股價、漲跌幅
+
+        注意：對於歷史資料（超過 30 天），可能無法準確判斷盤前/盤後，
+        此時會使用「當天收盤 vs 隔天收盤」作為預設比較方式。
         """
         results = []
 
@@ -270,6 +273,13 @@ class BacktestService:
                 event.earnings_date, prices, earnings_time_value
             )
 
+            # 對於股票歷史查詢，如果無法判斷盤前/盤後，使用 fallback 邏輯
+            # 預設使用「當天收盤 vs 隔天收盤」（假設盤後發佈）
+            if not price_before or not price_after:
+                earnings_time, price_before, price_after = self._determine_prices_fallback(
+                    event.earnings_date, prices
+                )
+
             if not price_before or not price_after:
                 continue
 
@@ -295,6 +305,51 @@ class BacktestService:
         results.sort(key=lambda x: x.earnings_date, reverse=True)
 
         return results
+
+    def _determine_prices_fallback(self, earnings_date: date, prices: list):
+        """
+        當無法判斷盤前/盤後時的 fallback 邏輯
+        使用「當天收盤 vs 隔天收盤」作為預設比較方式
+
+        Returns:
+            (earnings_time, price_before, price_after)
+            earnings_time 為 None 表示無法判斷
+        """
+        # 將價格按日期排序
+        sorted_prices = sorted(prices, key=lambda x: x.date if isinstance(x.date, date) else date.fromisoformat(str(x.date)))
+
+        # 建立日期到價格的映射
+        price_map = {}
+        for p in sorted_prices:
+            p_date = p.date if isinstance(p.date, date) else date.fromisoformat(str(p.date))
+            price_map[p_date] = p
+
+        # 找 earnings_date 當天的價格
+        earnings_day_price = None
+        if earnings_date in price_map:
+            earnings_day_price = price_map[earnings_date]
+
+        # 找 earnings_date 之後最近的交易日
+        day_after_price = None
+        for i in range(1, 6):
+            check_date = earnings_date + timedelta(days=i)
+            if check_date in price_map:
+                day_after_price = price_map[check_date]
+                break
+
+        # 如果 earnings_date 當天沒有交易，找之前最近的交易日
+        if not earnings_day_price:
+            for i in range(1, 6):
+                check_date = earnings_date - timedelta(days=i)
+                if check_date in price_map:
+                    earnings_day_price = price_map[check_date]
+                    break
+
+        if earnings_day_price and day_after_price:
+            # 使用當天收盤 vs 隔天收盤，earnings_time 設為 None
+            return (None, earnings_day_price, day_after_price)
+
+        return (None, None, None)
 
     async def _get_finnhub_earnings_times(
         self, start_date: date, end_date: date
