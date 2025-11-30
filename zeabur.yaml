@@ -1,0 +1,23 @@
+# Zeabur 部署配置
+# 文檔: https://zeabur.com/docs
+
+services:
+  # 後端 API
+  backend:
+    root_directory: backend
+    build_type: dockerfile
+    env:
+      - FMP_API_KEY
+      - AZURE_OPENAI_API_KEY
+      - AZURE_OPENAI_ENDPOINT
+      - AZURE_OPENAI_DEPLOYMENT_NAME
+      - AZURE_OPENAI_API_VERSION
+
+  # 前端
+  frontend:
+    root_directory: frontend
+    build_type: npm
+    build_command: npm run build
+    output_directory: dist
+    env:
+      - VITE_API_URL
