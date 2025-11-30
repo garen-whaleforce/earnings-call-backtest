@@ -178,6 +178,7 @@ header p {
   font-size: 0.9rem;
   position: relative;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .mode-toggle button::before {
@@ -190,13 +191,7 @@ header p {
   background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
   opacity: 0;
   transition: opacity 0.3s ease;
-  z-index: 0;
-}
-
-.mode-toggle button span,
-.mode-toggle button {
-  position: relative;
-  z-index: 1;
+  z-index: -1;
 }
 
 .mode-toggle button:hover {
