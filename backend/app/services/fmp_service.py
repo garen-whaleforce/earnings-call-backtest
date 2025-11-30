@@ -444,7 +444,15 @@ class FMPService:
         """
         從 earnings call transcript 判斷是盤前還是盤後發佈
         回傳: 'BMO' (Before Market Open), 'AMC' (After Market Close), 或 None
+
+        判斷邏輯（優先順序）：
+        1. 搜尋前 2000 字元中的 "good morning" / "good afternoon" / "good evening"
+        2. 搜尋時間戳記，如 "1:30 pm" 或 "8:00 am"
+           - AM 時間（盤前）：6:00 AM - 9:30 AM ET
+           - PM 時間（盤後）：4:00 PM - 8:00 PM ET
         """
+        import re
+
         # 根據 earnings_date 推算可能的季度（嘗試多個季度）
         year = earnings_date.year
         month = earnings_date.month
@@ -479,12 +487,42 @@ class FMPService:
                     continue
 
                 content = data[0].get("content", "").lower()
+                # 擴大搜尋範圍到前 2000 字元（有些公司在介紹完後才說 good morning/afternoon）
+                search_content = content[:2000]
 
-                # 從 transcript 內容判斷時間
-                if "good morning" in content[:500]:
+                # 1. 優先搜尋明確的問候語
+                if "good morning" in search_content:
                     return "BMO"  # Before Market Open (盤前)
-                elif "good afternoon" in content[:500] or "good evening" in content[:500]:
+                elif "good afternoon" in search_content or "good evening" in search_content:
                     return "AMC"  # After Market Close (盤後)
+
+                # 2. 搜尋時間戳記（如 "1:30 pm pacific time" 或 "8:00 a.m. eastern"）
+                # 常見格式：1:30 pm, 8:00 a.m., 16:30 等
+                time_patterns = [
+                    # 12 小時制：1:30 pm, 8:00 a.m.
+                    r'(\d{1,2})[:\.](\d{2})\s*(a\.?m\.?|p\.?m\.?)',
+                    # 帶時區：at 1:30 pm pacific, at 8:00 am eastern
+                    r'at\s+(\d{1,2})[:\.](\d{2})\s*(a\.?m\.?|p\.?m\.?)',
+                ]
+
+                for pattern in time_patterns:
+                    match = re.search(pattern, search_content)
+                    if match:
+                        hour = int(match.group(1))
+                        ampm = match.group(3).lower().replace('.', '')
+
+                        # 判斷是否為盤前或盤後
+                        if 'am' in ampm:
+                            # AM 時間：通常是盤前 (6:00 AM - 9:30 AM)
+                            if 6 <= hour <= 9:
+                                return "BMO"
+                        elif 'pm' in ampm:
+                            # PM 時間：通常是盤後 (1:00 PM+ Pacific = 4:00 PM+ ET)
+                            # 下午 12:00-3:00 PM Pacific = 盤後
+                            # 下午 4:00-8:00 PM ET = 盤後
+                            if hour >= 12 or (1 <= hour <= 8):
+                                return "AMC"
+
             except Exception:
                 continue
 
