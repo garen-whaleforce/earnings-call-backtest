@@ -370,17 +370,19 @@ class FMPService:
         - earnings-calendar API 每次最多回傳 4000 筆且無法按 symbol 過濾
         - API 有 90 天日期範圍限制
         - 但當日期範圍太大時（如 earnings season），4000 筆會被截斷
-        - 我們需要將查詢範圍分成更小的區塊（7 天），確保不會遺漏資料
+        - 我們需要將查詢範圍分成更小的區塊（3 天），確保不會遺漏資料
+        - 例如：5/1~5/8（7天）回傳 4000 筆，導致 AAPL 等大公司被截斷
         """
         events = []
         seen_dates = set()  # 避免重複
-        # 使用 7 天區塊避免 4000 筆限制導致資料截斷
-        # earnings season 期間（2月底、5月初、8月初、11月初）每天有大量公司發佈
-        # 測試顯示 14 天區塊在 earnings season 仍會達到 4000 筆上限
-        MAX_DAYS = 7
+        # 使用 3 天區塊避免 4000 筆限制導致資料截斷
+        # earnings season 高峰期（如 5/1 前後）每天有 1000+ 家公司發佈
+        # 測試顯示 7 天區塊在 earnings season 仍會達到 4000 筆上限
+        # 例如：5/1~5/8 回傳 4000 筆，導致 AAPL 等大公司被截斷
+        MAX_DAYS = 3
 
         try:
-            # 將日期範圍分成最多 7 天的區塊查詢
+            # 將日期範圍分成最多 3 天的區塊查詢
             current_start = from_date
             while current_start <= to_date:
                 # 計算區塊結束日期（最多 7 天後或 to_date）
